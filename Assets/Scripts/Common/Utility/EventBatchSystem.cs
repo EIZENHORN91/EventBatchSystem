@@ -12,6 +12,7 @@ namespace BovineLabs.Common.Utility
     using Unity.Collections.LowLevel.Unsafe;
     using Unity.Entities;
     using Unity.Jobs;
+    using UnityEngine.Profiling;
 
     /// <summary>
     /// The BatchBarrierSystem.
@@ -44,7 +45,7 @@ namespace BovineLabs.Common.Utility
         /// </summary>
         /// <typeparam name="T">The type of component data event.</typeparam>
         /// <returns>A <see cref="NativeQueue{T}"/> which any component that is added will be turned into a single frame event.</returns>
-        public NativeQueue<T> GetEventBatch<T>()
+        public NativeQueue<T> GetEventBatch<T>(JobComponentSystem componentSystem)
             where T : struct, IComponentData
         {
             if (!this.types.TryGetValue(typeof(T), out var create))
@@ -52,7 +53,7 @@ namespace BovineLabs.Common.Utility
                 create = this.types[typeof(T)] = new EventBatch<T>();
             }
 
-            return ((EventBatch<T>)create).GetNew();
+            return ((EventBatch<T>)create).GetNew(componentSystem);
         }
 
         /// <inheritdoc />
@@ -90,6 +91,7 @@ namespace BovineLabs.Common.Utility
         private class EventBatch<T> : IEventBatch
             where T : struct, IComponentData
         {
+            private readonly HashSet<JobComponentSystem> dependencies = new HashSet<JobComponentSystem>();
             private readonly List<NativeQueue<T>> queues = new List<NativeQueue<T>>();
             private readonly EntityArchetypeQuery query;
 
@@ -106,40 +108,33 @@ namespace BovineLabs.Common.Utility
                 };
             }
 
-            public NativeQueue<T> GetNew()
+            public NativeQueue<T> GetNew(JobComponentSystem componentSystem)
             {
                 // Having allocation leak warnings when using TempJob
                 var queue = new NativeQueue<T>(Allocator.Persistent);
                 this.queues.Add(queue);
+
+                this.dependencies.Add(componentSystem);
+                
                 return queue;
             }
 
             /// <inheritdoc />
             public JobHandle Update(EntityManager entityManager)
             {
-                if (this.entities.IsCreated)
-                {
-                    entityManager.DestroyEntity(this.entities);
-                    this.entities.Dispose();
-                }
+                this.CompleteDependencies();
+                this.DestroyEntities(entityManager);
 
-                var count = this.GetCount();
-
-                if (count == 0)
+                if (!this.CreateEntities(entityManager))
                 {
                     return default;
                 }
 
-                // Felt like Temp should be the allocator but gets disposed for some reason.
-                this.entities = new NativeArray<Entity>(count, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+                return this.SetComponentData(entityManager);
+            }
 
-                if (!this.archetype.Valid)
-                {
-                    this.archetype = entityManager.CreateArchetype(typeof(T));
-                }
-
-                entityManager.CreateEntity(this.archetype, this.entities);
-
+            private JobHandle SetComponentData(EntityManager entityManager)
+            {
                 var componentType = entityManager.GetArchetypeChunkComponentType<T>(false);
 
                 var chunks = entityManager.CreateArchetypeChunkArray(this.query, Allocator.TempJob);
@@ -148,6 +143,7 @@ namespace BovineLabs.Common.Utility
 
                 var handles = new NativeArray<JobHandle>(this.queues.Count, Allocator.TempJob);
 
+                // Create a job for each queue. This is designed so that these jobs can run simultaneously.
                 for (var index = 0; index < this.queues.Count; index++)
                 {
                     var queue = this.queues[index];
@@ -165,15 +161,69 @@ namespace BovineLabs.Common.Utility
                 }
 
                 var handle = JobHandle.CombineDependencies(handles);
-
                 handles.Dispose();
 
-                var deallocateChunks = new DeallocateJob<NativeArray<ArchetypeChunk>>(chunks);
-
-                handle = deallocateChunks.Schedule(handle);
-
+                // Deallocate the chunk array
+                handle = new DeallocateJob<NativeArray<ArchetypeChunk>>(chunks).Schedule(handle); ;
+                
                 return handle;
             }
+
+            private bool CreateEntities(EntityManager entityManager)
+            {
+                var count = this.GetCount();
+
+                if (count == 0)
+                {
+                    return false;
+                }
+
+                Profiler.BeginSample("CreateEntity");
+
+                // Felt like Temp should be the allocator but gets disposed for some reason.
+                this.entities = new NativeArray<Entity>(count, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+
+                if (!this.archetype.Valid)
+                {
+                    this.archetype = entityManager.CreateArchetype(typeof(T));
+                }
+
+                entityManager.CreateEntity(this.archetype, this.entities);
+
+                Profiler.EndSample();
+                return true;
+            }
+
+            private void CompleteDependencies()
+            {
+                Profiler.BeginSample("Dependencies");
+
+                JobHandle dependencyHandle = new JobHandle();
+
+                foreach (var system in this.dependencies)
+                {
+                    dependencyHandle = JobHandle.CombineDependencies(dependencyHandle, system.GetJobHandle());
+                }
+
+                dependencyHandle.Complete();
+                this.dependencies.Clear();
+
+                Profiler.EndSample();
+            }
+
+            private void DestroyEntities(EntityManager entityManager)
+            {
+                Profiler.BeginSample("DestroyEntity");
+
+                if (this.entities.IsCreated)
+                {
+                    entityManager.DestroyEntity(this.entities);
+                    this.entities.Dispose();
+                }
+
+                Profiler.EndSample();
+            }
+
 
             public void Reset()
             {

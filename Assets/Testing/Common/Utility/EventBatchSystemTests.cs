@@ -23,7 +23,7 @@ namespace BovineLabs.Testing.Common.Utility
         {
             var batchSystem = this.World.CreateManager<EventBatchSystem>();
 
-            var queue = batchSystem.GetEventBatch<TestData>();
+            var queue = batchSystem.GetEventBatch<TestData>(this.EmptySystem);
 
             var data0 = new TestData { Value = 0 };
             var data1 = new TestData { Value = 1 };
@@ -63,7 +63,7 @@ namespace BovineLabs.Testing.Common.Utility
         {
             var batchSystem = this.World.CreateManager<EventBatchSystem>();
 
-            Assert.AreNotEqual(batchSystem.GetEventBatch<TestData>(), batchSystem.GetEventBatch<TestData>());
+            Assert.AreNotEqual(batchSystem.GetEventBatch<TestData>(this.EmptySystem), batchSystem.GetEventBatch<TestData>(this.EmptySystem));
         }
 
         [Test]
@@ -71,8 +71,8 @@ namespace BovineLabs.Testing.Common.Utility
         {
             var batchSystem = this.World.CreateManager<EventBatchSystem>();
 
-            var queue1 = batchSystem.GetEventBatch<TestData>();
-            var queue2 = batchSystem.GetEventBatch<TestData>();
+            var queue1 = batchSystem.GetEventBatch<TestData>(this.EmptySystem);
+            var queue2 = batchSystem.GetEventBatch<TestData>(this.EmptySystem);
 
             var data0 = new TestData { Value = 0 };
             var data1 = new TestData { Value = 1 };
@@ -113,8 +113,8 @@ namespace BovineLabs.Testing.Common.Utility
         {
             var batchSystem = this.World.CreateManager<EventBatchSystem>();
 
-            var queue = batchSystem.GetEventBatch<TestData>();
-            var queue2 = batchSystem.GetEventBatch<TestData2>();
+            var queue = batchSystem.GetEventBatch<TestData>(this.EmptySystem);
+            var queue2 = batchSystem.GetEventBatch<TestData2>(this.EmptySystem);
 
             var data0 = new TestData { Value = 0 };
             var data1 = new TestData { Value = 1 };
