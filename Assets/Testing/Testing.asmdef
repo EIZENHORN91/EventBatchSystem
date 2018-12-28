@@ -1,0 +1,24 @@
+{
+    "name": "Shattered.Testing",
+    "references": [
+        "Unity.Mathematics",
+        "Common",
+        "Unity.Entities",
+        "Unity.Entities.Hybrid",
+        "Unity.Collections",
+        "Unity.Entities.Tests",
+        "Unity.Transforms"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": []
+}

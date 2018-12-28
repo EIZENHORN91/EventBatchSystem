@@ -1,0 +1,21 @@
+{
+    "name": "Common",
+    "references": [
+        "Unity.Mathematics",
+        "Unity.Entities",
+        "Unity.Entities.Hybrid",
+        "Unity.Burst",
+        "Unity.Transforms",
+        "Unity.Transforms.Hybrid",
+        "Unity.Collections",
+        "Unity.Rendering.Hybrid"
+    ],
+    "optionalUnityReferences": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": []
+}
